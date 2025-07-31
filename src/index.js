@@ -3,15 +3,47 @@ const express = require('express');
 const { ApolloServer } = require('apollo-server-express');
 const typeDefs = require('./graphql/schema');
 const resolvers = require('./graphql/resolvers');
+const jwt = require('jsonwebtoken');
+const { jwtSecret } = require('./config');
+const User = require('./models/User');
 const { connectToMongo } = require('./services/database');
 const { port } = require('./config');
+const authRoutes = require('./routes/auth');
+
+const cors = require('cors');
+
+const app = express();
+
+app.use(cors({ origin: ['http://127.0.0.1:5500', 'http://localhost:5500', '*'] }));
+app.use(express.json());
+app.use('/auth', authRoutes);
 
 async function startServer() {
-  // Create Express app
-  const app = express();
+  
 
   // Create Apollo Server
-  const server = new ApolloServer({ typeDefs, resolvers });
+  const server = new ApolloServer({ 
+    typeDefs, 
+    resolvers,
+     context: async ({ req }) => {
+    const authHeader = req.headers.authorization || '';
+    const token = authHeader.replace('Bearer ', '');
+
+    try {
+      if (!token) return { user: null };
+
+      const decoded = jwt.verify(token, jwtSecret);
+      const user = await User.findById(decoded.id);
+      console.log("Signing with secret:", jwtSecret);
+
+      return { user };
+    } catch (error) {
+      console.error('JWT verification failed:', error.message);
+
+      return { user: null };
+    }
+  }
+      });
 
   // Start Apollo Server and apply middleware to Express
   await server.start();

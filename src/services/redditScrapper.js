@@ -2,6 +2,7 @@
 const axios = require('axios');
 const { redditScraperUrl } = require('../config');
 
+
 async function fetchRedditEmails() {
   try {
     const req = await fetch(`${redditScraperUrl}`, {
