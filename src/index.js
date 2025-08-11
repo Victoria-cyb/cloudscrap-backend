@@ -163,7 +163,7 @@ const cors = require('cors');
 
 const app = express();
 
-app.use(cors({ origin: 'https://cloudscrap-frontend.vercel.app' })); // Use specific frontend URL
+app.use(cors({ origin: 'https://cloud-tau-nine.vercel.app' })); // Use specific frontend URL
 app.use(express.json());
 app.use('/auth', authRoutes);
 
