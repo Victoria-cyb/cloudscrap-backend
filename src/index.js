@@ -70,6 +70,85 @@
 
 
 
+// // src/index.js
+// const express = require('express');
+// const { ApolloServer } = require('apollo-server-express');
+// const typeDefs = require('./graphql/schema');
+// const resolvers = require('./graphql/resolvers');
+// const jwt = require('jsonwebtoken');
+// const { jwtSecret } = require('./config');
+// const User = require('./models/User');
+// const { connectToMongo } = require('./services/database');
+// const authRoutes = require('./routes/auth');
+
+// const cors = require('cors');
+
+// const app = express();
+
+// app.use(cors({ origin: '*' }));
+// app.use(express.json());
+// app.use('/auth', authRoutes);
+
+// // Global promise for setup
+// let setupPromise = null;
+
+// const setup = async () => {
+//   if (!setupPromise) {
+//     setupPromise = (async () => {
+//       try {
+//         await connectToMongo();
+//         console.log('MongoDB connected');
+
+//         const server = new ApolloServer({ 
+//           typeDefs, 
+//           resolvers,
+//           context: async ({ req }) => {
+//             const authHeader = req.headers.authorization || '';
+//             const token = authHeader.replace('Bearer ', '');
+
+//             try {
+//               if (!token) return { user: null };
+
+//               const decoded = jwt.verify(token, jwtSecret);
+//               const user = await User.findById(decoded.id);
+//               console.log("Signing with secret:", jwtSecret);
+
+//               return { user };
+//             } catch (error) {
+//               console.error('JWT verification failed:', error.message);
+//               return { user: null };
+//             }
+//           }
+//         });
+
+//         await server.start();
+//         server.applyMiddleware({ app });
+//         console.log('Apollo Server started');
+//       } catch (error) {
+//         console.error('Setup error:', error.message);
+//         throw error; // Rethrow to crash and log
+//       }
+//     })();
+//   }
+//   return setupPromise;
+// };
+
+// // Handler for all requests
+// app.all('*', async (req, res) => {
+//   try {
+//     await setup(); // Wait for setup on first request
+//     // Express will handle the request
+//   } catch (error) {
+//     res.status(500).json({ error: 'Server setup failed' });
+//   }
+// });
+
+// module.exports = app;
+
+
+
+
+
 // src/index.js
 const express = require('express');
 const { ApolloServer } = require('apollo-server-express');
@@ -80,69 +159,70 @@ const { jwtSecret } = require('./config');
 const User = require('./models/User');
 const { connectToMongo } = require('./services/database');
 const authRoutes = require('./routes/auth');
-
 const cors = require('cors');
 
 const app = express();
 
-app.use(cors({ origin: '*' }));
+app.use(cors({ origin: 'https://cloudscrap-frontend.vercel.app' })); // Use specific frontend URL
 app.use(express.json());
 app.use('/auth', authRoutes);
 
-// Global promise for setup
+// Health check route for debugging
+app.get('/health', (req, res) => {
+  res.status(200).json({ status: 'OK' });
+});
+
 let setupPromise = null;
 
 const setup = async () => {
   if (!setupPromise) {
     setupPromise = (async () => {
       try {
+        console.log('Connecting to MongoDB...');
         await connectToMongo();
         console.log('MongoDB connected');
 
-        const server = new ApolloServer({ 
-          typeDefs, 
+        const server = new ApolloServer({
+          typeDefs,
           resolvers,
           context: async ({ req }) => {
             const authHeader = req.headers.authorization || '';
             const token = authHeader.replace('Bearer ', '');
-
             try {
               if (!token) return { user: null };
-
               const decoded = jwt.verify(token, jwtSecret);
               const user = await User.findById(decoded.id);
-              console.log("Signing with secret:", jwtSecret);
-
+              console.log('JWT verified, user:', user ? user._id : null);
               return { user };
             } catch (error) {
               console.error('JWT verification failed:', error.message);
               return { user: null };
             }
-          }
+          },
         });
 
+        console.log('Starting Apollo Server...');
         await server.start();
         server.applyMiddleware({ app });
-        console.log('Apollo Server started');
+        console.log(`Apollo Server started on ${server.graphqlPath}`);
       } catch (error) {
-        console.error('Setup error:', error.message);
-        throw error; // Rethrow to crash and log
+        console.error('Setup error:', error);
+        throw error;
       }
     })();
   }
   return setupPromise;
 };
 
-// Handler for all requests
-app.all('*', async (req, res) => {
+// Handle all requests
+app.all('*', async (req, res, next) => {
   try {
-    await setup(); // Wait for setup on first request
-    // Express will handle the request
+    await setup();
+    next();
   } catch (error) {
+    console.error('Request handler error:', error);
     res.status(500).json({ error: 'Server setup failed' });
   }
 });
 
 module.exports = app;
-
-
